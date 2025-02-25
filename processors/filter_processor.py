@@ -6,31 +6,50 @@ import logging
 logger = logging.getLogger(__name__)
 
 class FilterProcessor:
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
         self.current_filter = None
 
     def apply_warm_filter(self, frame: np.ndarray, intensity: float = 0.4) -> np.ndarray:
-        """Apply warm color filter to frame"""
-        warm_layer = np.full_like(frame, [20, 40, 115])
-        return cv2.addWeighted(frame, 1.0, warm_layer, intensity, 0)
+        """Apply warm color filter to frame."""
+        try:
+            warm_layer = np.full_like(frame, [20, 40, 115])
+            return cv2.addWeighted(frame, 1.0, warm_layer, intensity, 0)
+        except Exception as e:
+            logger.error(f"Error applying warm filter: {str(e)}")
+            return frame
 
     def apply_cool_filter(self, frame: np.ndarray, intensity: float = 0.4) -> np.ndarray:
-        """Apply cool color filter to frame"""
-        cool_layer = np.full_like(frame, [128, 60, 20])
-        return cv2.addWeighted(frame, 1.0, cool_layer, intensity, 0)
+        """Apply cool color filter to frame."""
+        try:
+            cool_layer = np.full_like(frame, [128, 60, 20])
+            return cv2.addWeighted(frame, 1.0, cool_layer, intensity, 0)
+        except Exception as e:
+            logger.error(f"Error applying cool filter: {str(e)}")
+            return frame
 
-    def apply_cinematic_filter(self, frame: np.ndarray, 
-                             contrast: float = 1.2, 
-                             saturation: float = 0.85) -> np.ndarray:
-        """Apply cinematic color grading to frame"""
-        frame = cv2.convertScaleAbs(frame, alpha=contrast, beta=10)
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        hsv[:,:,1] = hsv[:,:,1] * saturation
-        return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    def apply_cinematic_filter(
+        self, 
+        frame: np.ndarray, 
+        contrast: float = 1.2, 
+        saturation: float = 0.85
+    ) -> np.ndarray:
+        """Apply cinematic color grading to frame."""
+        try:
+            frame = cv2.convertScaleAbs(frame, alpha=contrast, beta=10)
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            hsv[:,:,1] = hsv[:,:,1] * saturation
+            return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+        except Exception as e:
+            logger.error(f"Error applying cinematic filter: {str(e)}")
+            return frame
 
-    def process_frame(self, frame: np.ndarray, filter_name: Optional[str] = None) -> np.ndarray:
-        """Process a frame with the specified filter"""
+    def process_frame(
+        self, 
+        frame: np.ndarray, 
+        filter_name: Optional[str] = None
+    ) -> np.ndarray:
+        """Process frame with specified filter."""
         if filter_name is None:
             return frame
 
@@ -48,8 +67,7 @@ class FilterProcessor:
                 saturation = settings.get('saturation', 0.85)
                 return self.apply_cinematic_filter(frame, contrast, saturation)
 
-        except Exception as e:
-            logger.error(f"Error applying filter {filter_name}: {str(e)}")
             return frame
-
-        return frame
+        except Exception as e:
+            logger.error(f"Error processing frame with filter {filter_name}: {str(e)}")
+            return frame

@@ -4,40 +4,79 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Montage Creator</title>
-    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <style>
+        .upload-box {
+            border: 2px dashed var(--bs-border-color);
+            padding: 2rem;
+            text-align: center;
+            margin: 1rem 0;
+        }
+        .preview-container {
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 1rem 0;
+        }
+    </style>
 </head>
 <body>
     <div class="container py-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="text-center mb-0">Video Montage Creator</h2>
+        <h1 class="text-center mb-4">Video Montage Creator</h1>
+        
+        <div class="card">
+            <div class="card-body">
+                <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label class="form-label">Upload Video Clips (3-6 clips)</label>
+                        <div class="upload-box">
+                            <input type="file" class="form-control" name="clips[]" accept="video/mp4,video/avi,video/mov" 
+                                   multiple required>
+                        </div>
+                        <div id="clipPreview" class="preview-container"></div>
                     </div>
-                    <div class="card-body">
-                        <form action="/upload" method="post" enctype="multipart/form-data">
-                            <div class="mb-4">
-                                <label for="clips" class="form-label">Select Video Clips (3-6 clips)</label>
-                                <input type="file" class="form-control" id="clips" name="clips[]" 
-                                       accept=".mp4,.avi,.mov" multiple required>
-                                <div class="form-text">Supported formats: MP4, AVI, MOV</div>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <label for="music" class="form-label">Background Music</label>
-                                <input type="file" class="form-control" id="music" name="music" 
-                                       accept=".mp3" required>
-                                <div class="form-text">Supported format: MP3</div>
-                            </div>
 
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary">Create Montage</button>
-                            </div>
-                        </form>
+                    <div class="mb-4">
+                        <label class="form-label">Background Music</label>
+                        <div class="upload-box">
+                            <input type="file" class="form-control" name="music" accept="audio/mp3" required>
+                        </div>
                     </div>
-                </div>
+
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary">
+                            Create Montage
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
+
+    <script>
+        document.querySelector('input[name="clips[]"]').addEventListener('change', function(e) {
+            const preview = document.getElementById('clipPreview');
+            preview.innerHTML = '';
+            
+            if (this.files.length < 3 || this.files.length > 6) {
+                preview.innerHTML = '<div class="alert alert-danger">Please select 3-6 video clips</div>';
+                return;
+            }
+
+            Array.from(this.files).forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'alert alert-info mb-2';
+                item.textContent = `Clip ${index + 1}: ${file.name}`;
+                preview.appendChild(item);
+            });
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            const clips = document.querySelector('input[name="clips[]"]').files;
+            if (clips.length < 3 || clips.length > 6) {
+                e.preventDefault();
+                alert('Please select 3-6 video clips');
+            }
+        });
+    </script>
 </body>
 </html>

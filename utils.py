@@ -1,21 +1,46 @@
 import os
-from typing import Set, List
+import logging
+from typing import List
+from werkzeug.utils import secure_filename
+from config import ALLOWED_EXTENSIONS
 
-def allowed_file(filename: str, allowed_extensions: Set[str]) -> bool:
-    """Check if a filename has an allowed extension"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
-def ensure_directories_exist(directories: List[str]) -> None:
-    """Ensure all required directories exist"""
-    for directory in directories:
-        os.makedirs(directory, exist_ok=True)
+def allowed_file(filename: str) -> bool:
+    """Check if the file extension is allowed."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def clear_directory(directory: str) -> None:
-    """Remove all files in a directory"""
-    for file in os.listdir(directory):
-        file_path = os.path.join(directory, file)
-        try:
+def clean_directory(directory: str) -> None:
+    """Remove all files from specified directory."""
+    try:
+        for file in os.listdir(directory):
+            file_path = os.path.join(directory, file)
             if os.path.isfile(file_path):
                 os.remove(file_path)
-        except Exception as e:
-            print(f"Error: {e}")
+        logger.debug(f"Cleaned directory: {directory}")
+    except Exception as e:
+        logger.error(f"Error cleaning directory {directory}: {str(e)}")
+        raise
+
+def save_uploaded_file(file, directory: str, filename: str = None) -> str:
+    """Save uploaded file to specified directory with secure filename."""
+    if not file:
+        raise ValueError("No file provided")
+    
+    secure_name = secure_filename(filename or file.filename)
+    file_path = os.path.join(directory, secure_name)
+    
+    try:
+        file.save(file_path)
+        logger.debug(f"Saved file: {file_path}")
+        return file_path
+    except Exception as e:
+        logger.error(f"Error saving file {file_path}: {str(e)}")
+        raise
+
+def validate_clips(clips: List) -> bool:
+    """Validate number of clips and their formats."""
+    if not (3 <= len(clips) <= 6):
+        return False
+    return all(allowed_file(clip.filename) for clip in clips if clip)

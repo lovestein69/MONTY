@@ -1,22 +1,14 @@
+import os
 from typing import Dict, Any
 
-# Configuration settings
-CLIP_DURATION: int = 69  # Total duration in seconds
-MAIN_BODY_DURATION: int = 60  # Main content duration
+# Video settings
+CLIP_DURATION: float = 69.0  # Total duration in seconds
+MAIN_BODY_DURATION: float = 60.0  # Main content duration
 TRANSITION_DURATION: float = 0.5  # Crossfade duration
 INTRO_DURATION: float = 4.5
 OUTRO_DURATION: float = 4.5
 
-# Upload settings
-UPLOAD_FOLDER: str = 'uploads'
-MAX_CONTENT_LENGTH: int = 16 * 1024 * 1024  # 16MB max file size
-ALLOWED_EXTENSIONS: set = {'mp4', 'avi', 'mov', 'mp3'}
-
-# Directory paths
-CLIPS_DIR: str = 'clips'
-ASSETS_DIR: str = 'assets'
-
-# Filter settings
+# Filter configurations
 FILTERS: Dict[str, Dict[str, Any]] = {
     'warm': {
         'enabled': True,
@@ -35,3 +27,14 @@ FILTERS: Dict[str, Dict[str, Any]] = {
         'description': 'Movie-like color grading filter'
     }
 }
+
+# File settings
+UPLOAD_FOLDER = 'uploads'
+CLIPS_FOLDER = 'clips'
+ASSETS_FOLDER = 'assets'
+MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mp3'}
+
+# Create required directories
+for folder in [UPLOAD_FOLDER, CLIPS_FOLDER, ASSETS_FOLDER]:
+    os.makedirs(folder, exist_ok=True)
