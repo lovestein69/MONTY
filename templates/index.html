@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Montage Creator</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="text-center mb-0">Video Montage Creator</h2>
+                    </div>
+                    <div class="card-body">
+                        <form action="/upload" method="post" enctype="multipart/form-data">
+                            <div class="mb-4">
+                                <label for="clips" class="form-label">Select Video Clips (3-6 clips)</label>
+                                <input type="file" class="form-control" id="clips" name="clips[]" 
+                                       accept=".mp4,.avi,.mov" multiple required>
+                                <div class="form-text">Supported formats: MP4, AVI, MOV</div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="music" class="form-label">Background Music</label>
+                                <input type="file" class="form-control" id="music" name="music" 
+                                       accept=".mp3" required>
+                                <div class="form-text">Supported format: MP3</div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Create Montage</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
