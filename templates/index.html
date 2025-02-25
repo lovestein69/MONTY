@@ -53,12 +53,46 @@
         .share-button:hover {
             color: var(--bs-primary);
         }
+        .how-to-guide {
+            background: var(--bs-dark);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .step-number {
+            width: 24px;
+            height: 24px;
+            background: var(--bs-primary);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.5rem;
+        }
     </style>
 </head>
 <body>
     <div class="container py-5">
         <h1 class="text-center brand-title">MONTY</h1>
         <p class="text-center brand-subtitle">AI MONTAGE GENERATOR</p>
+
+        <!-- How-to Guide -->
+        <div class="how-to-guide mb-4">
+            <h4>Quick Start Guide</h4>
+            <p class="text-muted">Create engaging montages in minutes! Your montage can be any length up to 69 seconds - perfect for short-form content.</p>
+
+            <div class="mt-3">
+                <p><span class="step-number">1</span> Upload 3-6 video clips (MP4, AVI, or MOV format)</p>
+                <p><span class="step-number">2</span> Add background music (MP3 format)</p>
+                <p><span class="step-number">3</span> Choose an Art Pack for your desired visual style</p>
+                <p><span class="step-number">4</span> Select export quality (higher quality = larger file size)</p>
+            </div>
+
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Pro Tip:</strong> For the best results, use clips with clear action points or highlights. Your montage can be shorter than 69 seconds - MONTY will automatically optimize the timing based on your clips and music!
+            </div>
+        </div>
 
         <div class="card">
             <div class="card-body">
@@ -137,8 +171,8 @@
                     </div>
                 </form>
 
-                <!-- Export and Share Section (Hidden by default) -->
-                <div id="exportShare" class="export-options mt-4">
+                <!-- Export and Share Section -->
+                <div id="exportShare" class="mt-4">
                     <hr>
                     <h5 class="text-center mb-3">Share Your Montage</h5>
                     <div class="d-flex justify-content-center">
