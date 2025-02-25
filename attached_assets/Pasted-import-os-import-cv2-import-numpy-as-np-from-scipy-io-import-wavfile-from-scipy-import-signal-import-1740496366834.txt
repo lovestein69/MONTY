@@ -1,0 +1,388 @@
+import os
+import cv2
+import numpy as np
+from scipy.io import wavfile
+from scipy import signal
+import subprocess
+from PIL import Image, ImageEnhance, ImageFilter
+from flask import Flask, request, send_file, render_template
+from werkzeug.utils import secure_filename
+
+# Configuration settings
+CLIP_DURATION = 69  # Total duration in seconds
+MAIN_BODY_DURATION = 60  # Main content duration
+TRANSITION_DURATION = 0.5  # Crossfade duration
+INTRO_DURATION = 4.5
+OUTRO_DURATION = 4.5
+
+# Filter settings
+FILTERS = {
+    'warm': {
+        'enabled': True,
+        'intensity': 0.4,
+        'description': 'Warm orange/red tint filter'
+    },
+    'cool': {
+        'enabled': True,
+        'intensity': 0.4,
+        'description': 'Cool blue tint filter'
+    },
+    'cinematic': {
+        'enabled': True,
+        'contrast': 1.2,
+        'saturation': 0.85,
+        'description': 'Movie-like color grading filter'
+    }
+}
+
+class AudioProcessor:
+    def __init__(self):
+        self.tempo = None
+        self.beat_frames = None
+        self.beat_times = None
+
+    def convert_to_wav(self, audio_file):
+        """Convert audio file to WAV format for processing"""
+        wav_file = audio_file + '.wav'
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', audio_file,
+            '-acodec', 'pcm_s16le',  # Use 16-bit PCM format
+            '-ar', '44100',
+            wav_file
+        ]
+        subprocess.run(cmd, capture_output=True)
+        return wav_file
+
+    def generate_default_beats(self, duration, bpm=120):
+        """Generate evenly spaced beats at specified BPM"""
+        self.tempo = bpm
+        beat_interval = 60.0 / bpm
+        self.beat_times = np.arange(0, duration, beat_interval)
+        print(f"Generated {len(self.beat_times)} beats at {bpm} BPM")
+        return self.beat_times
+
+    def analyze_beats(self, audio_file):
+        """Analyze audio file for beats using scipy"""
+        print(f"\nAnalyzing beats in audio file: {audio_file}")
+
+        try:
+            wav_file = self.convert_to_wav(audio_file)
+            sample_rate, audio_data = wavfile.read(wav_file)
+
+            if len(audio_data.shape) > 1:
+                audio_data = np.mean(audio_data, axis=1)
+
+            if audio_data.dtype.kind in 'iu':
+                audio_data = audio_data.astype(np.float32) / np.iinfo(audio_data.dtype).max
+            else:
+                audio_data = audio_data.astype(np.float32)
+                audio_data = audio_data / np.abs(audio_data).max()
+
+            window_size = int(0.05 * sample_rate)
+            hop_length = window_size // 2
+
+            onset_env = []
+            for i in range(0, len(audio_data) - window_size, hop_length):
+                window = audio_data[i:i + window_size]
+                rms = np.sqrt(np.mean(window**2))
+                onset_env.append(rms)
+
+            onset_env = np.array(onset_env)
+
+            if onset_env.max() > 0:
+                onset_env = onset_env / onset_env.max()
+
+            min_samples_between_beats = int(60 / 180 * sample_rate / hop_length)
+            peaks = signal.find_peaks(
+                onset_env,
+                distance=min_samples_between_beats,
+                prominence=0.1
+            )[0]
+
+            self.beat_times = peaks * hop_length / sample_rate
+
+            if len(self.beat_times) == 0:
+                print("No beats detected, using default beat generation")
+                duration = len(audio_data) / sample_rate
+                return self.generate_default_beats(duration)
+
+            beat_intervals = np.diff(self.beat_times)
+            self.tempo = 60 / np.median(beat_intervals)
+
+            if os.path.exists(wav_file):
+                os.remove(wav_file)
+
+            print(f"Detected tempo: {self.tempo:.2f} BPM")
+            print(f"Found {len(self.beat_times)} beats")
+            return self.beat_times
+
+        except Exception as e:
+            print(f"Error analyzing beats: {str(e)}")
+            if 'wav_file' in locals() and os.path.exists(wav_file):
+                os.remove(wav_file)
+            print("Using default beat generation")
+            return self.generate_default_beats(69)
+
+    def get_nearest_beat(self, time_point):
+        if self.beat_times is None or len(self.beat_times) == 0:
+            return None
+        closest_beat = self.beat_times[np.argmin(np.abs(self.beat_times - time_point))]
+        return closest_beat
+
+    def get_beats_in_range(self, start_time, end_time):
+        if self.beat_times is None or len(self.beat_times) == 0:
+            return []
+        mask = (self.beat_times >= start_time) & (self.beat_times <= end_time)
+        return self.beat_times[mask]
+
+class FilterProcessor:
+    def __init__(self, config=None):
+        self.config = config or {}
+        self.current_filter = None
+
+    def apply_warm_filter(self, frame, intensity=0.4):
+        warm_layer = np.full_like(frame, [20, 40, 115])
+        return cv2.addWeighted(frame, 1.0, warm_layer, intensity, 0)
+
+    def apply_cool_filter(self, frame, intensity=0.4):
+        cool_layer = np.full_like(frame, [128, 60, 20])
+        return cv2.addWeighted(frame, 1.0, cool_layer, intensity, 0)
+
+    def apply_cinematic_filter(self, frame, contrast=1.2, saturation=0.85):
+        frame = cv2.convertScaleAbs(frame, alpha=contrast, beta=10)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        hsv[:,:,1] = hsv[:,:,1] * saturation
+        return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+    def process_frame(self, frame, filter_name=None):
+        if filter_name is None:
+            return frame
+
+        settings = self.config.get('FILTERS', {}).get(filter_name, {})
+
+        if filter_name == 'warm':
+            intensity = settings.get('intensity', 0.4)
+            return self.apply_warm_filter(frame, intensity)
+        elif filter_name == 'cool':
+            intensity = settings.get('intensity', 0.4)
+            return self.apply_cool_filter(frame, intensity)
+        elif filter_name == 'cinematic':
+            contrast = settings.get('contrast', 1.2)
+            saturation = settings.get('saturation', 0.85)
+            return self.apply_cinematic_filter(frame, contrast, saturation)
+
+        return frame
+
+def get_video_info(video_path):
+    """Get basic video metadata"""
+    print(f"\nAnalyzing video: {video_path}")
+    cap = cv2.VideoCapture(video_path)
+    
+    info = {
+        'width': int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+        'height': int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        'fps': cap.get(cv2.CAP_PROP_FPS),
+        'frame_count': int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
+        'duration': cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)
+    }
+    
+    cap.release()
+    print(f"Video info: {info}")
+    return info
+
+def create_montage(clip_folder, intro_file, outro_file, music_file, output_path):
+    """Create video montage with beat-synchronized transitions"""
+    video_files = [os.path.join(clip_folder, f) for f in os.listdir(clip_folder)
+                   if f.endswith(('.mp4', '.avi', '.mov'))]
+    
+    if not (3 <= len(video_files) <= 6):
+        raise ValueError("Please provide 3 to 6 clips")
+    
+    all_clips = [intro_file] + video_files + [outro_file]
+    
+    # Initialize processors
+    effects = FilterProcessor(globals())
+    audio_proc = AudioProcessor()
+    
+    # Analyze audio beats
+    beat_times = audio_proc.analyze_beats(music_file)
+    print(f"Detected {len(beat_times)} beats in the music")
+    
+    try:
+        # Get info from first video
+        first_video = cv2.VideoCapture(all_clips[0])
+        frame_width = int(first_video.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(first_video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = first_video.get(cv2.CAP_PROP_FPS)
+        first_video.release()
+        
+        # Create video writer
+        temp_output = output_path + ".temp.avi"
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        out = cv2.VideoWriter(temp_output, fourcc, fps, (frame_width, frame_height))
+        
+        if not out.isOpened():
+            raise RuntimeError("Failed to create video writer")
+        
+        # Process each video
+        total_frames = 0
+        current_time = 0.0
+        prev_frames = []
+        
+        for i, video_file in enumerate(all_clips):
+            print(f"\nProcessing: {video_file}")
+            cap = cv2.VideoCapture(video_file)
+            frame_count = 0
+            
+            # Apply different filters
+            filter_name = ['warm', 'cool', 'cinematic'][i % 3]
+            print(f"Applying filter: {filter_name}")
+            
+            # Get clip duration
+            clip_duration = cap.get(cv2.CAP_PROP_FRAME_COUNT) / fps
+            
+            # Find beats during this clip
+            clip_beats = audio_proc.get_beats_in_range(current_time, current_time + clip_duration)
+            print(f"Found {len(clip_beats)} beats during this clip")
+            
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                frame_time = current_time + (frame_count / fps)
+                
+                if frame.shape[:2] != (frame_height, frame_width):
+                    frame = cv2.resize(frame, (frame_width, frame_height))
+                
+                frame = effects.process_frame(frame, filter_name)
+                
+                nearest_beat = audio_proc.get_nearest_beat(frame_time)
+                if i > 0 and nearest_beat is not None:
+                    beat_distance = abs(frame_time - nearest_beat)
+                    if beat_distance < (TRANSITION_DURATION / 2) and prev_frames:
+                        alpha = 1.0 - (beat_distance / (TRANSITION_DURATION / 2))
+                        frame_idx = min(len(prev_frames) - 1, frame_count)
+                        if frame_idx < len(prev_frames):
+                            frame = cv2.addWeighted(
+                                prev_frames[frame_idx],
+                                1.0 - alpha,
+                                frame,
+                                alpha,
+                                0
+                            )
+                
+                out.write(frame)
+                frame_count += 1
+                
+                if frame_count % 100 == 0:
+                    print(f"Processed {frame_count} frames...")
+            
+            current_time += clip_duration
+            cap.release()
+            total_frames += frame_count
+            print(f"Completed {video_file}: {frame_count} frames")
+        
+        out.release()
+        
+        # Add audio using FFmpeg
+        print("\nAdding background audio...")
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', temp_output,
+            '-i', music_file,
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-c:a', 'aac',
+            '-shortest',
+            output_path
+        ]
+        
+        subprocess.run(cmd)
+        os.remove(temp_output)
+        
+        print(f"\nMontage created successfully!")
+        final_info = get_video_info(output_path)
+        print(f"Duration: {final_info['duration']:.2f}s")
+        return final_info['duration']
+        
+    except Exception as e:
+        print(f"Error creating montage: {str(e)}")
+        if 'temp_output' in locals() and os.path.exists(temp_output):
+            os.remove(temp_output)
+        raise
+
+# Flask web interface
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Ensure directories exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs('clips', exist_ok=True)
+os.makedirs('assets', exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'mp4', 'avi', 'mov', 'mp3'}
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_files():
+    if 'clips[]' not in request.files:
+        return 'No clips uploaded', 400
+    
+    if 'music' not in request.files:
+        return 'No music file uploaded', 400
+
+    # Save clips
+    clips = request.files.getlist('clips[]')
+    if not (3 <= len(clips) <= 6):
+        return 'Please upload between 3 and 6 video clips', 400
+
+    # Clear previous files
+    for folder in ['clips', 'assets']:
+        for file in os.listdir(folder):
+            os.remove(os.path.join(folder, file))
+
+    # Save new files
+    clip_paths = []
+    for clip in clips:
+        if clip and allowed_file(clip.filename):
+            filename = secure_filename(clip.filename)
+            path = os.path.join('clips', filename)
+            clip.save(path)
+            clip_paths.append(path)
+
+    # Save music file
+    music = request.files['music']
+    if music and allowed_file(music.filename):
+        music_path = os.path.join('assets', 'background.mp3')
+        music.save(music_path)
+    else:
+        return 'Invalid music file', 400
+
+    try:
+        # Create montage
+        duration = create_montage(
+            'clips',
+            'assets/intro.mp4',
+            'assets/outro.mp4',
+            music_path,
+            'output_montage.mp4'
+        )
+        
+        return send_file(
+            'output_montage.mp4',
+            as_attachment=True,
+            download_name='montage.mp4'
+        )
+    
+    except Exception as e:
+        return str(e), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
