@@ -17,12 +17,22 @@
             overflow-y: auto;
             margin: 1rem 0;
         }
+        .art-pack-card {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .art-pack-card:hover {
+            transform: translateY(-5px);
+        }
+        .art-pack-card.selected {
+            border-color: var(--bs-primary);
+        }
     </style>
 </head>
 <body>
     <div class="container py-5">
         <h1 class="text-center mb-4">Video Montage Creator</h1>
-        
+
         <div class="card">
             <div class="card-body">
                 <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
@@ -42,6 +52,48 @@
                         </div>
                     </div>
 
+                    <div class="mb-4">
+                        <label class="form-label">Choose Art Pack</label>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="card h-100 art-pack-card" data-pack="classic">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Classic</h5>
+                                        <p class="card-text small">Standard color grading with subtle enhancements</p>
+                                        <input type="radio" name="art_pack" value="classic" class="d-none" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card h-100 art-pack-card" data-pack="vintage">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Vintage</h5>
+                                        <p class="card-text small">Retro look with warm tones and film grain</p>
+                                        <input type="radio" name="art_pack" value="vintage" class="d-none">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card h-100 art-pack-card" data-pack="neon">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Neon</h5>
+                                        <p class="card-text small">Vibrant colors with high contrast</p>
+                                        <input type="radio" name="art_pack" value="neon" class="d-none">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card h-100 art-pack-card" data-pack="minimal">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Minimal</h5>
+                                        <p class="card-text small">Clean and simple look with subtle gradients</p>
+                                        <input type="radio" name="art_pack" value="minimal" class="d-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="text-center">
                         <button type="submit" class="btn btn-primary">
                             Create Montage
@@ -53,10 +105,11 @@
     </div>
 
     <script>
+        // Handle clip file selection
         document.querySelector('input[name="clips[]"]').addEventListener('change', function(e) {
             const preview = document.getElementById('clipPreview');
             preview.innerHTML = '';
-            
+
             if (this.files.length < 3 || this.files.length > 6) {
                 preview.innerHTML = '<div class="alert alert-danger">Please select 3-6 video clips</div>';
                 return;
@@ -70,11 +123,34 @@
             });
         });
 
+        // Handle art pack selection
+        document.querySelectorAll('.art-pack-card').forEach(card => {
+            card.addEventListener('click', function() {
+                // Remove selection from all cards
+                document.querySelectorAll('.art-pack-card').forEach(c => {
+                    c.classList.remove('selected');
+                    c.querySelector('input[type="radio"]').checked = false;
+                });
+
+                // Select clicked card
+                this.classList.add('selected');
+                this.querySelector('input[type="radio"]').checked = true;
+            });
+        });
+
+        // Form validation
         document.getElementById('uploadForm').addEventListener('submit', function(e) {
             const clips = document.querySelector('input[name="clips[]"]').files;
+            const artPack = document.querySelector('input[name="art_pack"]:checked');
+
             if (clips.length < 3 || clips.length > 6) {
                 e.preventDefault();
                 alert('Please select 3-6 video clips');
+            }
+
+            if (!artPack) {
+                e.preventDefault();
+                alert('Please select an Art Pack');
             }
         });
     </script>
